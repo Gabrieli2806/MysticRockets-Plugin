@@ -20,12 +20,16 @@ import org.bukkit.plugin.java.JavaPlugin;
 import org.bukkit.util.Vector;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.UUID;
 
 public class MysticFireworkPlugin extends JavaPlugin implements Listener {
 
     // Vanilla-like boost values for Levels 1-3, enhanced for Level 4
-    private static final double[] BOOST_VALUES = {0.5, 0.7, 1.0, 1.3}; // Level 1, 2, 3, 4
+    private static final double[] BOOST_VALUES = {0.3, 0.45, 0.65, 0.85}; // Level 1, 2, 3, 4
     private NamespacedKey[] recipeKeys;
+    private static final long COOLDOWN_DURATION = 5000; // 5 seconds in milliseconds
+    private HashMap<UUID, Long> playerCooldowns = new HashMap<>();
 
     @Override
     public void onEnable() {
@@ -108,6 +112,17 @@ public class MysticFireworkPlugin extends JavaPlugin implements Listener {
         if (item != null && item.getType() == Material.FIREWORK_ROCKET && item.hasItemMeta()) {
             ItemMeta meta = item.getItemMeta();
             if (meta.hasCustomModelData() && meta.getCustomModelData() >= 1001 && meta.getCustomModelData() <= 1004) {
+                UUID playerUUID = player.getUniqueId();
+
+                if (playerCooldowns.containsKey(playerUUID)) {
+                    long timeRemaining = (playerCooldowns.get(playerUUID) + COOLDOWN_DURATION) - System.currentTimeMillis();
+                    if (timeRemaining > 0) {
+                        player.sendMessage(ChatColor.RED + "You must wait " + String.format("%.1f", timeRemaining / 1000.0) + " seconds before using the Mystic Rocket again.");
+                        event.setCancelled(true); // Prevent item consumption and boost
+                        return;
+                    }
+                }
+
                 event.setCancelled(true); // Prevenir consumo
                 if (player.isGliding()) {
                     int level = meta.getCustomModelData() - 1001; // 0-based index for array
@@ -115,6 +130,8 @@ public class MysticFireworkPlugin extends JavaPlugin implements Listener {
                     // Aplicar impulso
                     Vector direction = player.getLocation().getDirection();
                     player.setVelocity(player.getVelocity().add(direction.multiply(boost)));
+                    // Update cooldown
+                    playerCooldowns.put(playerUUID, System.currentTimeMillis());
                     // Efecto de sonido
                     player.getWorld().playSound(player.getLocation(), Sound.ENTITY_FIREWORK_ROCKET_LAUNCH, 1.0f, 1.0f);
                     // Efecto de partículas (imitar vainilla)
